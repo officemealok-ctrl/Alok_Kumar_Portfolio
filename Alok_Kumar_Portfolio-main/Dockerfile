@@ -1,5 +1,5 @@
 # ==========================================
-# Stage 1: Build & Dependencies
+# Stage 1: Build Backend Dependencies
 # ==========================================
 FROM node:18-alpine AS builder
 
@@ -7,11 +7,11 @@ WORKDIR /app
 
 COPY backend/package*.json ./
 
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 
 # ==========================================
-# Stage 2: Runtime
+# Stage 2: Production Runtime
 # ==========================================
 FROM node:18-alpine AS runner
 
@@ -24,7 +24,7 @@ COPY --from=builder /app/node_modules ./node_modules
 
 COPY backend/package*.json ./
 
-# Copy complete backend application
+# Copy backend application
 COPY backend/ ./
 
 EXPOSE 3000
@@ -34,8 +34,8 @@ HEALTHCHECK --interval=30s \
             --start-period=10s \
             --retries=3 \
             CMD wget --no-verbose \
-                     --tries=1 \
-                     --spider \
-                     http://localhost:3000/api/health || exit 1
+                 --tries=1 \
+                 --spider \
+                 http://localhost:3000/api/health || exit 1
 
-CMD ["node", "server.js"]
+CMD ["node", "index.js"]

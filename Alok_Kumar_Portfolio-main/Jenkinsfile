@@ -3,13 +3,14 @@ pipeline {
 
     environment {
         APP_NAME = 'Alok_Kumar_Portfolio-main'
-       // Docker image names must be lowercase
-    IMAGE_NAME = 'officemealok/alok-kumar-portfolio'
-    IMAGE_TAG = "${BUILD_NUMBER}"
 
+        // Docker image name must be lowercase
+        IMAGE_NAME = 'officemealok/alok-kumar-portfolio'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        PROJECT_DIR = 'Alok_Kumar_Portfolio-main'
         BACKEND_DIR = 'Alok_Kumar_Portfolio-main/backend'
         FRONTEND_DIR = 'Alok_Kumar_Portfolio-main/frontend'
-        PROJECT_DIR = 'Alok_Kumar_Portfolio-main'
 
         CONTAINER_TEST_PORT = '3001'
         PRODUCTION_PORT = '80'
@@ -67,20 +68,49 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-    steps {
-        echo "Building Backend Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+        stage('Verify Docker Files') {
+            steps {
+                echo 'Verifying Docker build files...'
 
-        dir("${BACKEND_DIR}") {
-            sh """
-                docker build \
-                    -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                    -t ${IMAGE_NAME}:latest \
-                    .
-            """
+                dir("${PROJECT_DIR}") {
+                    sh '''
+                        echo "Current directory:"
+                        pwd
+
+                        echo "Project files:"
+                        ls -la
+
+                        echo "Checking Dockerfile:"
+                        test -f Dockerfile
+
+                        echo "Checking backend:"
+                        test -f backend/package.json
+                        test -d backend/src
+
+                        echo "Checking frontend:"
+                        test -f frontend/package.json
+                        test -d frontend/src
+
+                        echo "Dockerfile found successfully."
+                    '''
+                }
+            }
         }
-    }
-}
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+
+                dir("${PROJECT_DIR}") {
+                    sh """
+                        docker build \
+                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                            -t ${IMAGE_NAME}:latest \
+                            .
+                    """
+                }
+            }
+        }
 
         stage('Test Container Runtime') {
             steps {
@@ -97,9 +127,18 @@ pipeline {
 
                     sleep 10
 
+                    echo "Container status:"
                     docker ps --filter "name=${APP_NAME}-test"
 
-                    curl --fail http://localhost:${CONTAINER_TEST_PORT}/api/health
+                    echo "Container logs:"
+                    docker logs ${APP_NAME}-test
+
+                    echo "Testing health endpoint..."
+
+                    curl --fail \
+                        http://localhost:${CONTAINER_TEST_PORT}/api/health
+
+                    echo "Container health check successful."
 
                     docker stop ${APP_NAME}-test || true
                     docker rm ${APP_NAME}-test || true
@@ -123,7 +162,11 @@ pipeline {
 
                     sleep 5
 
+                    echo "Production container status:"
                     docker ps --filter "name=node-app-container"
+
+                    echo "Production container logs:"
+                    docker logs --tail 50 node-app-container
                 """
             }
         }
@@ -142,10 +185,11 @@ pipeline {
         success {
             echo "Pipeline completed successfully!"
             echo "Build #${BUILD_NUMBER} deployed on Port ${PRODUCTION_PORT}"
+            echo "Application URL: http://<EC2-PUBLIC-IP>"
         }
 
         failure {
-            echo "Pipeline failed on Build #${BUILD_NUMBER}. Check the logs above."
+            echo "Pipeline failed on Build #${BUILD_NUMBER}. Check logs above."
         }
     }
 }

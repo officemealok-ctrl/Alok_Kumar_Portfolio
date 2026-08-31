@@ -1,36 +1,49 @@
+# ==========================================
 # Stage 1: Build & Dependencies
+# ==========================================
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy backend package files
+COPY backend/package*.json ./
 
-# Install dependencies
-RUN npm install --only=production
+# Install production dependencies
+RUN npm install --omit=dev
 
-# Stage 2: Runtime image
+
+# ==========================================
+# Stage 2: Runtime
+# ==========================================
 FROM node:18-alpine AS runner
 
 WORKDIR /app
 
-# Set production environment
+# Production environment
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Copy installed node_modules from builder
+# Copy production dependencies
 COPY --from=builder /app/node_modules ./node_modules
-COPY package*.json ./
 
-# Copy application source
-COPY src/ ./src/
+# Copy backend package files
+COPY backend/package*.json ./
 
-# Expose port
+# Copy backend source code
+COPY backend/src/ ./src/
+
+# Expose backend port
 EXPOSE 3000
 
-# Health check inside Docker
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+# Docker health check
+HEALTHCHECK --interval=30s \
+            --timeout=5s \
+            --start-period=10s \
+            --retries=3 \
+            CMD wget --no-verbose \
+                     --tries=1 \
+                     --spider \
+                     http://localhost:3000/api/health || exit 1
 
-# Start server
+# Start backend
 CMD ["node", "src/server.js"]

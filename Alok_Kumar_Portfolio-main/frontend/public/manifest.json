@@ -1,0 +1,24 @@
+{
+  "name": "Alok Kumar | Cloud Architect",
+  "short_name": "Alok.Portfolio",
+  "description": "Professional portfolio of Alok Kumar Karan",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B0F19",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/Alok.Tech-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Alok.Tech-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

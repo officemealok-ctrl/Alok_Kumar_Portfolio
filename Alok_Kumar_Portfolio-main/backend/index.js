@@ -9,6 +9,19 @@ const OpenAI = require('openai');
 const contactRouter = require('./contact');
 
 const app = express();
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// === Health Check ===
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'Resume analyzer backend is healthy',
+    uptime: process.uptime()
+  });
+});
+
 
 // Configure CORS to allow requests from your deployed frontend (recommended)
 // Set FRONTEND_URL in your Render service environment variables to your Vercel URL
@@ -39,21 +52,21 @@ function simpleScore(text) {
 
   // === Keyword Libraries ===
   const devKeywords = [
-    'javascript','typescript','react','next.js','vue','angular','node','express','java',
-    'spring','c#','dotnet','django','flask','python','php','laravel','git','docker',
-    'kubernetes','aws','azure','gcp','rest api','graphql','microservices','html','css','sass'
+    'javascript', 'typescript', 'react', 'next.js', 'vue', 'angular', 'node', 'express', 'java',
+    'spring', 'c#', 'dotnet', 'django', 'flask', 'python', 'php', 'laravel', 'git', 'docker',
+    'kubernetes', 'aws', 'azure', 'gcp', 'rest api', 'graphql', 'microservices', 'html', 'css', 'sass'
   ];
 
   const dataKeywords = [
-    'sql','mysql','postgresql','mongodb','power bi','tableau','excel','pandas','numpy','matplotlib',
-    'seaborn','data analysis','data visualization','data cleaning','data preprocessing','statistics',
-    'machine learning','deep learning','tensorflow','pytorch','spark','hadoop'
+    'sql', 'mysql', 'postgresql', 'mongodb', 'power bi', 'tableau', 'excel', 'pandas', 'numpy', 'matplotlib',
+    'seaborn', 'data analysis', 'data visualization', 'data cleaning', 'data preprocessing', 'statistics',
+    'machine learning', 'deep learning', 'tensorflow', 'pytorch', 'spark', 'hadoop'
   ];
 
   const actionVerbs = [
-    'led','built','designed','developed','implemented','optimized','improved','analyzed',
-    'created','enhanced','automated','managed','collaborated','architected','maintained',
-    'deployed','debugged','tested','configured','delivered','mentored'
+    'led', 'built', 'designed', 'developed', 'implemented', 'optimized', 'improved', 'analyzed',
+    'created', 'enhanced', 'automated', 'managed', 'collaborated', 'architected', 'maintained',
+    'deployed', 'debugged', 'tested', 'configured', 'delivered', 'mentored'
   ];
 
   // === Match Counting ===
@@ -163,12 +176,12 @@ Be analytical, structured, and insightful. Focus on measurable details and profe
 
         // === FIX: Remove Markdown formatting if Gemini includes it ===
         if (output.startsWith('```json')) {
-            output = output.substring(7); // Remove ```json
+          output = output.substring(7); // Remove ```json
         } else if (output.startsWith('```')) {
-            output = output.substring(3); // Remove ```
+          output = output.substring(3); // Remove ```
         }
         if (output.endsWith('```')) {
-            output = output.substring(0, output.length - 3); // Remove trailing ```
+          output = output.substring(0, output.length - 3); // Remove trailing ```
         }
         output = output.trim();
         // ============================================================
@@ -207,7 +220,7 @@ Be analytical, structured, and insightful. Focus on measurable details and profe
     console.error(err);
     return res.status(500).json({ error: 'Analysis failed' });
   } finally {
-    if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
+    if (req.file && req.file.path) fs.unlink(req.file.path, () => { });
   }
 });
 

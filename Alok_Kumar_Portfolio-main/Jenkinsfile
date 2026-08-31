@@ -69,33 +69,50 @@ pipeline {
         }
 
         stage('Verify Docker Files') {
-            steps {
-                echo 'Verifying Docker build files...'
+    steps {
+        dir("${PROJECT_DIR}") {
+            sh '''
+                echo "======================================"
+                echo "Current Directory"
+                echo "======================================"
+                pwd
 
-                dir("${PROJECT_DIR}") {
-                    sh '''
-                        echo "Current directory:"
-                        pwd
+                echo ""
+                echo "======================================"
+                echo "Project Structure"
+                echo "======================================"
+                ls -la
 
-                        echo "Project files:"
-                        ls -la
+                echo ""
+                echo "======================================"
+                echo "Backend Structure"
+                echo "======================================"
+                find backend -maxdepth 3 -type f -print
 
-                        echo "Checking Dockerfile:"
-                        test -f Dockerfile
+                echo ""
+                echo "======================================"
+                echo "Frontend Structure"
+                echo "======================================"
+                find frontend -maxdepth 2 -type f -print
 
-                        echo "Checking backend:"
-                        test -f backend/package.json
-                        test -d backend/src
+                echo ""
+                echo "======================================"
+                echo "Dockerfile"
+                echo "======================================"
+                test -f Dockerfile
 
-                        echo "Checking frontend:"
-                        test -f frontend/package.json
-                        test -d frontend/src
+                echo ""
+                echo "======================================"
+                echo "Backend package.json"
+                echo "======================================"
+                test -f backend/package.json
 
-                        echo "Dockerfile found successfully."
-                    '''
-                }
-            }
+                echo ""
+                echo "Dockerfile and backend package.json found."
+            '''
         }
+    }
+}
 
         stage('Build Docker Image') {
             steps {

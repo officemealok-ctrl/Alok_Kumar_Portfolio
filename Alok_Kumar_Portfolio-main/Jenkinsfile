@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         APP_NAME = 'Alok_Kumar_Portfolio-main'
-        IMAGE_NAME = "officemealok/${APP_NAME}"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+       // Docker image names must be lowercase
+    IMAGE_NAME = 'officemealok/alok-kumar-portfolio'
+    IMAGE_TAG = "${BUILD_NUMBER}"
 
         BACKEND_DIR = 'Alok_Kumar_Portfolio-main/backend'
         FRONTEND_DIR = 'Alok_Kumar_Portfolio-main/frontend'

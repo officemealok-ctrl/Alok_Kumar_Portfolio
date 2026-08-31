@@ -5,47 +5,101 @@ pipeline {
         APP_NAME = 'Alok_Kumar_Portfolio-main'
         IMAGE_NAME = "officemealok/${APP_NAME}"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        CONTAINER_TEST_PORT = "3001"
+
+        BACKEND_DIR = 'Alok_Kumar_Portfolio-main/backend'
+        FRONTEND_DIR = 'Alok_Kumar_Portfolio-main/frontend'
+        PROJECT_DIR = 'Alok_Kumar_Portfolio-main'
+
+        CONTAINER_TEST_PORT = '3001'
+        PRODUCTION_PORT = '80'
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Install Backend Dependencies') {
             steps {
-                echo 'Checking out source code...'
-                checkout scm
+                echo 'Installing Backend dependencies...'
+
+                dir("${BACKEND_DIR}") {
+                    sh 'npm install'
+                }
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install Frontend Dependencies') {
             steps {
-                echo 'Installing Node.js dependencies...'
-                sh 'npm install'
+                echo 'Installing Frontend dependencies...'
+
+                dir("${FRONTEND_DIR}") {
+                    sh 'npm install'
+                }
             }
         }
 
-        stage('Run Unit Tests') {
+        stage('Backend Unit Tests') {
             steps {
-                echo 'Executing Jest automated unit tests...'
-                sh 'npm test'
+                echo 'Running Backend tests...'
+
+                dir("${BACKEND_DIR}") {
+                    sh 'npm run test --if-present'
+                }
+            }
+        }
+
+        stage('Frontend Unit Tests') {
+            steps {
+                echo 'Running Frontend tests...'
+
+                dir("${FRONTEND_DIR}") {
+                    sh 'npm run test --if-present'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                echo 'Building Frontend application...'
+
+                dir("${FRONTEND_DIR}") {
+                    sh 'npm run build'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest ."
+
+                dir("${PROJECT_DIR}") {
+                    sh """
+                        docker build \
+                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                            -t ${IMAGE_NAME}:latest \
+                            .
+                    """
+                }
             }
         }
 
         stage('Test Container Runtime') {
             steps {
-                echo 'Running integration test on container runtime...'
+                echo 'Testing Docker container...'
+
                 sh """
                     docker stop ${APP_NAME}-test || true
                     docker rm ${APP_NAME}-test || true
-                    docker run -d --name ${APP_NAME}-test -p ${CONTAINER_TEST_PORT}:3000 ${IMAGE_NAME}:${IMAGE_TAG}
-                    sleep 5
-                    curl --fail http://localhost:${CONTAINER_TEST_PORT}/api/health || exit 1
+
+                    docker run -d \
+                        --name ${APP_NAME}-test \
+                        -p ${CONTAINER_TEST_PORT}:3000 \
+                        ${IMAGE_NAME}:${IMAGE_TAG}
+
+                    sleep 10
+
+                    docker ps --filter "name=${APP_NAME}-test"
+
+                    curl --fail http://localhost:${CONTAINER_TEST_PORT}/api/health
+
                     docker stop ${APP_NAME}-test || true
                     docker rm ${APP_NAME}-test || true
                 """
@@ -54,26 +108,43 @@ pipeline {
 
         stage('Deploy Production Container') {
             steps {
-                echo 'Deploying latest production container to Port 80...'
+                echo 'Deploying production container...'
+
                 sh """
                     docker stop node-app-container || true
                     docker rm node-app-container || true
-                    docker run -d --name node-app-container -p 80:3000 ${IMAGE_NAME}:latest
+
+                    docker run -d \
+                        --name node-app-container \
+                        -p ${PRODUCTION_PORT}:3000 \
+                        --restart unless-stopped \
+                        ${IMAGE_NAME}:latest
+
+                    sleep 5
+
+                    docker ps --filter "name=node-app-container"
                 """
             }
         }
     }
 
     post {
+
         always {
-            echo 'Cleaning up build artifacts...'
-            sh 'docker container prune -f || true'
+            echo 'Cleaning up unused Docker resources...'
+
+            sh '''
+                docker container prune -f || true
+            '''
         }
+
         success {
-            echo "Pipeline completed successfully! Build #${BUILD_NUMBER} deployed to http://localhost (Port 80)."
+            echo "Pipeline completed successfully!"
+            echo "Build #${BUILD_NUMBER} deployed on Port ${PRODUCTION_PORT}"
         }
+
         failure {
-            echo "Pipeline failed on Build #${BUILD_NUMBER}. Check logs above."
+            echo "Pipeline failed on Build #${BUILD_NUMBER}. Check the logs above."
         }
     }
 }

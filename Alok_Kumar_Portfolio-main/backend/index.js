@@ -8,6 +8,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const OpenAI = require('openai');
 const contactRouter = require('./contact');
 
+const app = express();
+
 
 // Configure CORS to allow requests from your deployed frontend (recommended)
 // Set FRONTEND_URL in your Render service environment variables to your Vercel URL

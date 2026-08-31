@@ -130,38 +130,61 @@ pipeline {
         }
 
         stage('Test Container Runtime') {
-            steps {
-                echo 'Testing Docker container...'
+    steps {
+        echo 'Testing Docker container...'
 
-                sh """
-                    docker stop ${APP_NAME}-test || true
-                    docker rm ${APP_NAME}-test || true
+        sh """
+            set -e
 
-                    docker run -d \
-                        --name ${APP_NAME}-test \
-                        -p ${CONTAINER_TEST_PORT}:3000 \
-                        ${IMAGE_NAME}:${IMAGE_TAG}
+            docker stop ${APP_NAME}-test || true
+            docker rm ${APP_NAME}-test || true
 
-                    sleep 10
+            docker run -d \\
+                --name ${APP_NAME}-test \\
+                -p ${CONTAINER_TEST_PORT}:3000 \\
+                ${IMAGE_NAME}:${IMAGE_TAG}
 
-                    echo "Container status:"
-                    docker ps --filter "name=${APP_NAME}-test"
+            echo "Waiting for container startup..."
+            sleep 10
 
-                    echo "Container logs:"
-                    docker logs ${APP_NAME}-test
+            echo "======================================"
+            echo "Container Status"
+            echo "======================================"
 
-                    echo "Testing health endpoint..."
+            docker ps -a --filter "name=${APP_NAME}-test"
 
-                    curl --fail \
-                        http://localhost:${CONTAINER_TEST_PORT}/api/health
+            echo "======================================"
+            echo "Container Logs"
+            echo "======================================"
 
-                    echo "Container health check successful."
+            docker logs ${APP_NAME}-test
 
-                    docker stop ${APP_NAME}-test || true
-                    docker rm ${APP_NAME}-test || true
-                """
-            }
-        }
+            echo "======================================"
+            echo "Checking Container Running Status"
+            echo "======================================"
+
+            if [ "\$(docker inspect -f '{{.State.Running}}' ${APP_NAME}-test)" != "true" ]; then
+                echo "ERROR: Container has stopped."
+                exit 1
+            fi
+
+            echo "Container is running."
+
+            echo "======================================"
+            echo "Testing Health Endpoint"
+            echo "======================================"
+
+            curl --fail --retry 5 --retry-delay 2 \\
+                http://localhost:${CONTAINER_TEST_PORT}/api/health
+
+            echo ""
+            echo "Container health check successful."
+
+            docker stop ${APP_NAME}-test || true
+            docker rm ${APP_NAME}-test || true
+        """
+    }
+}
 
         stage('Deploy Production Container') {
             steps {

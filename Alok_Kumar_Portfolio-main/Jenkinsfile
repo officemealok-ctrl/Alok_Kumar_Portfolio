@@ -68,19 +68,19 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            steps {
-                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+    steps {
+        echo "Building Backend Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
 
-                dir("${PROJECT_DIR}") {
-                    sh """
-                        docker build \
-                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${IMAGE_NAME}:latest \
-                            .
-                    """
-                }
-            }
+        dir("${BACKEND_DIR}") {
+            sh """
+                docker build \
+                    -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                    -t ${IMAGE_NAME}:latest \
+                    .
+            """
         }
+    }
+}
 
         stage('Test Container Runtime') {
             steps {

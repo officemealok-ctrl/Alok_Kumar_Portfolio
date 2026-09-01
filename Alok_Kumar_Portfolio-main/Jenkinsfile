@@ -533,11 +533,20 @@ pipeline {
             steps {
                 echo 'Deploying production container...'
                 sh """
-                    set -e
-
-                    echo "-- Stopping old container --"
+                    echo "-- Stopping named production container --"
                     docker stop ${CONTAINER_PROD_NAME} 2>/dev/null || true
                     docker rm   ${CONTAINER_PROD_NAME} 2>/dev/null || true
+
+                    echo "-- Releasing port ${PRODUCTION_PORT} (kill any container using it) --"
+                    PORT_CONTAINER=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep "0.0.0.0:${PRODUCTION_PORT}->" | awk '{print \$1}' || true)
+                    if [ -n "\${PORT_CONTAINER}" ]; then
+                        echo "Found container using port ${PRODUCTION_PORT}: \${PORT_CONTAINER}"
+                        docker stop \${PORT_CONTAINER} || true
+                        docker rm   \${PORT_CONTAINER} || true
+                        echo "Port ${PRODUCTION_PORT} released"
+                    else
+                        echo "Port ${PRODUCTION_PORT} is free"
+                    fi
 
                     echo "-- Starting new production container --"
                     docker run -d \\
@@ -560,6 +569,7 @@ pipeline {
                 """
             }
         }
+
 
         // ════════════════════════════════════════════════════
         //  PHASE 12 - POST-DEPLOY HEALTH VERIFICATION

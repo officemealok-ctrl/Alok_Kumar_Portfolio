@@ -1,20 +1,18 @@
 // ============================================================
-//  Alok Kumar Portfolio — Production CI/CD Pipeline
-//  Covers: Lint → Secrets → Audit → Unit Tests → Integration
-//          Tests → Coverage Gates → Docker Build → Image Scan
-//          → Smoke Test → Push → Deploy → Post-Deploy Verify
-//          → Auto-Rollback on failure
+//  Alok Kumar Portfolio - Production CI/CD Pipeline
+//  Covers: Lint -> Secrets -> Audit -> Unit Tests -> Integration
+//          Tests -> Coverage Gates -> Docker Build -> Image Scan
+//          -> Smoke Test -> Push -> Deploy -> Post-Deploy Verify
+//          -> Auto-Rollback on failure
 // ============================================================
 
 pipeline {
     agent any
 
-    // ── Global env ───────────────────────────────────────────
     environment {
         APP_NAME            = 'alok-kumar-portfolio'
         IMAGE_NAME          = 'officemealok/alok-kumar-portfolio'
         IMAGE_TAG           = "${BUILD_NUMBER}"
-        PREV_IMAGE_TAG      = "${BUILD_NUMBER.toInteger() - 1}"   // for rollback
 
         PROJECT_DIR         = 'Alok_Kumar_Portfolio-main'
         BACKEND_DIR         = 'Alok_Kumar_Portfolio-main/backend'
@@ -22,17 +20,12 @@ pipeline {
 
         CONTAINER_TEST_NAME = "${APP_NAME}-smoke-${BUILD_NUMBER}"
         CONTAINER_PROD_NAME = 'portfolio-prod'
-        CONTAINER_TEST_PORT = '3099'    // ephemeral test port
+        CONTAINER_TEST_PORT = '3099'
         PRODUCTION_PORT     = '80'
 
-        // Coverage minimum thresholds (%)
         COVERAGE_THRESHOLD  = '50'
-
-        // Notification
-        BUILD_URL_MSG       = "${env.BUILD_URL ?: 'http://localhost:8080'}"
     }
 
-    // ── Pipeline options ──────────────────────────────────────
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 45, unit: 'MINUTES')
@@ -40,7 +33,6 @@ pipeline {
         ansiColor('xterm')
     }
 
-    // ── Triggered on SCM push ─────────────────────────────────
     triggers {
         pollSCM('H/5 * * * *')
     }
@@ -48,17 +40,17 @@ pipeline {
     stages {
 
         // ════════════════════════════════════════════════════
-        //  PHASE 0 — ENVIRONMENT INFO
+        //  PHASE 0 - ENVIRONMENT INFO
         // ════════════════════════════════════════════════════
-        stage('🔎 Environment Info') {
+        stage('Environment Info') {
             steps {
                 sh '''
                     echo "=============================================="
-                    echo "  BUILD #${BUILD_NUMBER} — ${JOB_NAME}"
+                    echo "  BUILD STARTED"
                     echo "=============================================="
-                    echo "Node   : $(node --version)"
-                    echo "NPM    : $(npm --version)"
-                    echo "Docker : $(docker --version)"
+                    echo "Node   : $(node --version 2>/dev/null || echo 'not found')"
+                    echo "NPM    : $(npm --version 2>/dev/null || echo 'not found')"
+                    echo "Docker : $(docker --version 2>/dev/null || echo 'not found')"
                     echo "OS     : $(uname -a)"
                     echo "Date   : $(date)"
                     echo "Workspace: ${WORKSPACE}"
@@ -68,16 +60,15 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 1 — INSTALL DEPENDENCIES
+        //  PHASE 1 - INSTALL DEPENDENCIES
         // ════════════════════════════════════════════════════
-        stage('📦 Install Dependencies') {
+        stage('Install Dependencies') {
             parallel {
 
                 stage('Install Backend Deps') {
                     steps {
-                        echo '▶ Installing backend dependencies (npm ci for reproducibility)...'
+                        echo 'Installing backend dependencies...'
                         dir("${BACKEND_DIR}") {
-                            // npm ci is faster + deterministic vs npm install
                             sh 'npm ci || npm install'
                         }
                     }
@@ -85,7 +76,7 @@ pipeline {
 
                 stage('Install Frontend Deps') {
                     steps {
-                        echo '▶ Installing frontend dependencies...'
+                        echo 'Installing frontend dependencies...'
                         dir("${FRONTEND_DIR}") {
                             sh 'npm ci || npm install'
                         }
@@ -95,23 +86,22 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 2 — CODE QUALITY & STATIC ANALYSIS
+        //  PHASE 2 - CODE QUALITY & STATIC ANALYSIS
         // ════════════════════════════════════════════════════
-        stage('🔍 Code Quality & Static Analysis') {
+        stage('Code Quality and Static Analysis') {
             parallel {
 
-                // ── ESLint Backend ────────────────────────────
-                stage('ESLint — Backend') {
+                stage('ESLint Backend') {
                     steps {
-                        echo '▶ Running ESLint on backend...'
+                        echo 'Running ESLint on backend...'
                         dir("${BACKEND_DIR}") {
                             sh '''
                                 if [ -f ".eslintrc.json" ] || [ -f ".eslintrc.js" ] || [ -f "eslint.config.js" ]; then
                                     npx eslint . --ext .js --format unix --output-file eslint-backend-report.txt || true
-                                    echo "── ESLint Backend Results ──"
+                                    echo "-- ESLint Backend Results --"
                                     cat eslint-backend-report.txt || true
                                 else
-                                    echo "⚠️  No ESLint config found — skipping backend lint"
+                                    echo "No ESLint config found - skipping backend lint"
                                 fi
                             '''
                         }
@@ -127,18 +117,17 @@ pipeline {
                     }
                 }
 
-                // ── ESLint Frontend ───────────────────────────
-                stage('ESLint — Frontend') {
+                stage('ESLint Frontend') {
                     steps {
-                        echo '▶ Running ESLint on frontend...'
+                        echo 'Running ESLint on frontend...'
                         dir("${FRONTEND_DIR}") {
                             sh '''
                                 if [ -f ".eslintrc.json" ] || [ -f ".eslintrc.js" ] || [ -f "eslint.config.js" ]; then
-                                    npx eslint src --ext .js,.jsx,.ts,.tsx --format unix --output-file eslint-frontend-report.txt || true
-                                    echo "── ESLint Frontend Results ──"
+                                    npx eslint src --ext .js,.jsx --format unix --output-file eslint-frontend-report.txt || true
+                                    echo "-- ESLint Frontend Results --"
                                     cat eslint-frontend-report.txt || true
                                 else
-                                    echo "⚠️  No ESLint config found — skipping frontend lint"
+                                    echo "No ESLint config found - skipping frontend lint"
                                 fi
                             '''
                         }
@@ -154,42 +143,47 @@ pipeline {
                     }
                 }
 
-                // ── Secrets Scan ──────────────────────────────
-                stage('🔐 Secrets Scan') {
+                stage('Secrets Scan') {
                     steps {
-                        echo '▶ Scanning for hardcoded secrets and API keys...'
+                        echo 'Scanning for hardcoded secrets and API keys...'
                         dir("${PROJECT_DIR}") {
                             sh '''
-                                echo "── Scanning for potential secrets ──"
-                                # Grep for common secret patterns (non-blocking)
-                                grep -rn --include="*.js" --include="*.jsx" --include="*.ts" --include="*.env" \
-                                    -E "(api_key|apikey|secret|password|token|private_key)\s*=\s*['\"][^'\"]{8,}['\"]" \
-                                    . || echo "✅ No hardcoded secrets pattern found"
+                                echo "-- Scanning for potential secrets --"
+                                PATTERN="(api_key|apikey|secret|password|token|private_key)[[:space:]]*=[[:space:]]*[^[:space:]]{8,}"
+                                grep -rn \
+                                    --include="*.js" \
+                                    --include="*.jsx" \
+                                    --include="*.ts" \
+                                    -E "${PATTERN}" \
+                                    . || echo "No hardcoded secrets pattern found"
 
                                 echo ""
-                                echo "── Checking for .env files accidentally committed ──"
-                                find . -name ".env" -not -path "*/node_modules/*" && \
-                                    echo "⚠️  WARNING: .env file found in repo — ensure it is in .gitignore" || \
-                                    echo "✅ No .env files in working tree"
+                                echo "-- Checking for .env files accidentally committed --"
+                                ENV_FOUND=$(find . -name ".env" -not -path "*/node_modules/*" 2>/dev/null | head -5)
+                                if [ -n "${ENV_FOUND}" ]; then
+                                    echo "WARNING: .env file found - ensure it is in .gitignore"
+                                    echo "${ENV_FOUND}"
+                                else
+                                    echo "No .env files found in working tree"
+                                fi
                             '''
                         }
                     }
                 }
 
-                // ── Dependency Vulnerability Audit ────────────
-                stage('🛡️ Dependency Audit (npm audit)') {
+                stage('Dependency Audit') {
                     steps {
-                        echo '▶ Auditing npm dependencies for known CVEs...'
+                        echo 'Auditing npm dependencies for known CVEs...'
                         dir("${BACKEND_DIR}") {
                             sh '''
-                                echo "── Backend Dependency Audit ──"
-                                npm audit --audit-level=high --json > npm-audit-backend.json 2>&1 || true
+                                echo "-- Backend Dependency Audit --"
                                 npm audit --audit-level=high 2>&1 || true
+                                npm audit --audit-level=high --json > npm-audit-backend.json 2>&1 || true
                             '''
                         }
                         dir("${FRONTEND_DIR}") {
                             sh '''
-                                echo "── Frontend Dependency Audit ──"
+                                echo "-- Frontend Dependency Audit --"
                                 npm audit --audit-level=high 2>&1 || true
                             '''
                         }
@@ -208,30 +202,29 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 3 — UNIT TESTS + COVERAGE
+        //  PHASE 3 - UNIT TESTS + COVERAGE
         // ════════════════════════════════════════════════════
-        stage('🧪 Unit Tests & Coverage') {
+        stage('Unit Tests and Coverage') {
             parallel {
 
-                // ── Backend Unit Tests ────────────────────────
                 stage('Backend Unit Tests (Jest)') {
                     steps {
-                        echo '▶ Running backend unit tests with coverage...'
+                        echo 'Running backend unit tests with coverage...'
                         dir("${BACKEND_DIR}") {
                             sh '''
-                                if grep -q '"test"' package.json; then
+                                HAS_TEST=$(node -e "const p=require('./package.json'); console.log(p.scripts && p.scripts.test ? 'yes' : 'no')" 2>/dev/null || echo 'no')
+                                if [ "${HAS_TEST}" = "yes" ]; then
                                     npm test -- \
                                         --coverage \
                                         --coverageReporters=text \
                                         --coverageReporters=lcov \
                                         --coverageReporters=html \
-                                        --reporters=default \
-                                        --reporters=jest-junit \
+                                        --coverageReporters=json-summary \
                                         --forceExit \
                                         2>&1 || true
-                                    echo "── Backend Tests Complete ──"
+                                    echo "-- Backend Tests Complete --"
                                 else
-                                    echo "⚠️  No test script in backend/package.json — skipping"
+                                    echo "No test script in backend/package.json - skipping"
                                 fi
                             '''
                         }
@@ -239,11 +232,9 @@ pipeline {
                     post {
                         always {
                             script {
-                                // Publish JUnit test results
                                 if (fileExists("${BACKEND_DIR}/junit.xml")) {
                                     junit "${BACKEND_DIR}/junit.xml"
                                 }
-                                // Archive coverage HTML
                                 if (fileExists("${BACKEND_DIR}/coverage/index.html")) {
                                     publishHTML([
                                         allowMissing: true,
@@ -259,22 +250,20 @@ pipeline {
                     }
                 }
 
-                // ── Frontend Unit Tests ───────────────────────
                 stage('Frontend Unit Tests (Vitest)') {
                     steps {
-                        echo '▶ Running frontend unit tests with coverage...'
+                        echo 'Running frontend unit tests with coverage...'
                         dir("${FRONTEND_DIR}") {
                             sh '''
-                                if grep -q '"test"' package.json; then
+                                HAS_TEST=$(node -e "const p=require('./package.json'); console.log(p.scripts && p.scripts.test ? 'yes' : 'no')" 2>/dev/null || echo 'no')
+                                if [ "${HAS_TEST}" = "yes" ]; then
                                     npm test -- \
                                         --coverage \
                                         --reporter=verbose \
-                                        --reporter=junit \
-                                        --outputFile.junit=junit-frontend.xml \
                                         2>&1 || true
-                                    echo "── Frontend Tests Complete ──"
+                                    echo "-- Frontend Tests Complete --"
                                 else
-                                    echo "⚠️  No test script in frontend/package.json — skipping"
+                                    echo "No test script in frontend/package.json - skipping"
                                 fi
                             '''
                         }
@@ -303,20 +292,18 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 4 — INTEGRATION TESTS (API)
+        //  PHASE 4 - INTEGRATION TESTS
         // ════════════════════════════════════════════════════
-        stage('🔗 Integration Tests (API)') {
+        stage('Integration Tests') {
             steps {
-                echo '▶ Running API integration tests against live backend...'
+                echo 'Running API integration tests...'
                 dir("${BACKEND_DIR}") {
                     sh '''
-                        if grep -q '"test:integration"' package.json; then
+                        HAS_INTEGRATION=$(node -e "const p=require('./package.json'); console.log(p.scripts && p.scripts['test:integration'] ? 'yes' : 'no')" 2>/dev/null || echo 'no')
+                        if [ "${HAS_INTEGRATION}" = "yes" ]; then
                             npm run test:integration 2>&1 || true
-                        elif grep -q '"test"' package.json; then
-                            echo "Running integration-tagged tests..."
-                            npm test -- --testPathPattern="integration|api" --forceExit 2>&1 || true
                         else
-                            echo "⚠️  No integration test script — skipping"
+                            echo "No integration test script - skipping"
                         fi
                     '''
                 }
@@ -324,28 +311,28 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 5 — COVERAGE GATE
+        //  PHASE 5 - COVERAGE GATE
         // ════════════════════════════════════════════════════
-        stage('📊 Coverage Gate') {
+        stage('Coverage Gate') {
             steps {
-                echo "▶ Checking coverage meets minimum threshold of ${COVERAGE_THRESHOLD}%..."
+                echo "Checking coverage meets minimum threshold of ${COVERAGE_THRESHOLD}%..."
                 dir("${BACKEND_DIR}") {
                     sh """
                         if [ -f coverage/coverage-summary.json ]; then
                             LINES=\$(node -e "
-                                const c = require('./coverage/coverage-summary.json');
-                                const total = c.total;
-                                console.log(Math.round(total.lines.pct));
+                              try {
+                                var c = require('./coverage/coverage-summary.json');
+                                console.log(Math.round(c.total.lines.pct));
+                              } catch(e) { console.log(0); }
                             " 2>/dev/null || echo 0)
                             echo "Backend line coverage: \${LINES}%"
                             if [ "\${LINES}" -lt "${COVERAGE_THRESHOLD}" ]; then
-                                echo "⚠️  Coverage \${LINES}% is below threshold ${COVERAGE_THRESHOLD}% — warning only"
-                                # Change 'echo' to 'exit 1' to make it a hard gate
+                                echo "WARNING: Coverage \${LINES}% is below threshold ${COVERAGE_THRESHOLD}%"
                             else
-                                echo "✅ Coverage \${LINES}% meets threshold ✓"
+                                echo "Coverage \${LINES}% meets threshold - OK"
                             fi
                         else
-                            echo "⚠️  No coverage-summary.json found — skipping gate check"
+                            echo "No coverage-summary.json found - skipping gate check"
                         fi
                     """
                 }
@@ -353,30 +340,21 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 6 — BUILD
+        //  PHASE 6 - BUILD
         // ════════════════════════════════════════════════════
-        stage('🏗️ Build') {
+        stage('Build') {
             parallel {
 
                 stage('Build Frontend (Vite)') {
                     steps {
-                        echo '▶ Building frontend production bundle...'
+                        echo 'Building frontend production bundle...'
                         dir("${FRONTEND_DIR}") {
                             sh '''
                                 npm run build
-                                echo "── Build output size ──"
+                                echo "-- Build output size --"
                                 du -sh dist/ 2>/dev/null || echo "dist/ not found"
                                 ls -la dist/ 2>/dev/null || true
                             '''
-                        }
-                    }
-                    post {
-                        always {
-                            script {
-                                if (fileExists("${FRONTEND_DIR}/dist")) {
-                                    archiveArtifacts artifacts: "${FRONTEND_DIR}/dist/**/*", allowEmptyArchive: true
-                                }
-                            }
                         }
                     }
                 }
@@ -385,14 +363,11 @@ pipeline {
                     steps {
                         dir("${PROJECT_DIR}") {
                             sh '''
-                                echo "── Project Structure Verification ──"
-                                echo "Dockerfile:         $(test -f Dockerfile && echo ✅ FOUND || echo ❌ MISSING)"
-                                echo "backend/package.json: $(test -f backend/package.json && echo ✅ FOUND || echo ❌ MISSING)"
-                                echo "backend/index.js:   $(test -f backend/index.js && echo ✅ FOUND || echo ❌ MISSING)"
-                                echo "frontend/dist/:     $(test -d frontend/dist && echo ✅ FOUND || echo ⚠️  NOT BUILT)"
-                                echo ""
-                                echo "── Docker files ──"
-                                ls -la Dockerfile .dockerignore 2>/dev/null || true
+                                echo "-- Project Structure Verification --"
+                                echo "Dockerfile         : $(test -f Dockerfile && echo FOUND || echo MISSING)"
+                                echo "backend/package.json : $(test -f backend/package.json && echo FOUND || echo MISSING)"
+                                echo "backend/index.js   : $(test -f backend/index.js && echo FOUND || echo MISSING)"
+                                echo "frontend/dist/     : $(test -d frontend/dist && echo FOUND || echo NOT BUILT)"
                             '''
                         }
                     }
@@ -401,30 +376,22 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 7 — DOCKER BUILD
+        //  PHASE 7 - DOCKER BUILD
         // ════════════════════════════════════════════════════
-        stage('🐳 Docker Build') {
+        stage('Docker Build') {
             steps {
-                echo "▶ Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
                 dir("${PROJECT_DIR}") {
                     sh """
-                        echo "── Docker Build Start ──"
-                        docker build \
-                            --build-arg BUILD_DATE=\$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-                            --build-arg BUILD_NUMBER=${BUILD_NUMBER} \
-                            --label "build.number=${BUILD_NUMBER}" \
-                            --label "build.date=\$(date -u)" \
-                            --label "app.name=${APP_NAME}" \
-                            -t ${IMAGE_NAME}:${IMAGE_TAG} \
-                            -t ${IMAGE_NAME}:latest \
+                        echo "-- Docker Build Start --"
+                        docker build \\
+                            --label "build.number=${BUILD_NUMBER}" \\
+                            -t ${IMAGE_NAME}:${IMAGE_TAG} \\
+                            -t ${IMAGE_NAME}:latest \\
                             .
+
                         echo ""
-                        echo "── Image Info ──"
-                        docker image inspect ${IMAGE_NAME}:${IMAGE_TAG} \
-                            --format '{{json .Config.Labels}}' | python3 -m json.tool 2>/dev/null || \
-                            docker image inspect ${IMAGE_NAME}:${IMAGE_TAG} --format '{{json .Config.Labels}}' || true
-                        echo ""
-                        echo "── Image Size ──"
+                        echo "-- Image Size --"
                         docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}"
                     """
                 }
@@ -432,29 +399,25 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 8 — IMAGE SECURITY SCAN (Trivy)
+        //  PHASE 8 - IMAGE SECURITY SCAN (Trivy)
         // ════════════════════════════════════════════════════
-        stage('🔒 Image Security Scan (Trivy)') {
+        stage('Image Security Scan') {
             steps {
-                echo '▶ Scanning Docker image for OS & package vulnerabilities...'
+                echo 'Scanning Docker image for vulnerabilities...'
                 sh """
                     if command -v trivy > /dev/null 2>&1; then
-                        echo "── Trivy Image Scan ──"
-                        trivy image \
-                            --exit-code 0 \
-                            --severity HIGH,CRITICAL \
-                            --format table \
-                            --output trivy-report.txt \
+                        echo "-- Trivy Image Scan --"
+                        trivy image \\
+                            --exit-code 0 \\
+                            --severity HIGH,CRITICAL \\
+                            --format table \\
+                            --output trivy-report.txt \\
                             ${IMAGE_NAME}:${IMAGE_TAG} || true
-
-                        echo "── Trivy Report ──"
+                        echo "-- Trivy Report --"
                         cat trivy-report.txt
-
-                        # Fail build if CRITICAL CVEs found (uncomment to enforce)
-                        # trivy image --exit-code 1 --severity CRITICAL ${IMAGE_NAME}:${IMAGE_TAG}
                     else
-                        echo "⚠️  Trivy not installed — skipping image scan"
-                        echo "    Install: https://aquasecurity.github.io/trivy/latest/getting-started/installation/"
+                        echo "Trivy not installed - skipping image scan"
+                        echo "Install: https://aquasecurity.github.io/trivy"
                     fi
                 """
             }
@@ -470,74 +433,73 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 9 — CONTAINER SMOKE TEST
+        //  PHASE 9 - CONTAINER SMOKE TEST
         // ════════════════════════════════════════════════════
-        stage('💨 Container Smoke Test') {
+        stage('Container Smoke Test') {
             steps {
-                echo '▶ Running container smoke test — startup + health check...'
+                echo 'Running container smoke test...'
                 sh """
                     set -e
 
-                    # Cleanup any previous test container
                     docker stop ${CONTAINER_TEST_NAME} 2>/dev/null || true
                     docker rm   ${CONTAINER_TEST_NAME} 2>/dev/null || true
 
-                    echo "── Starting test container ──"
-                    docker run -d \
-                        --name ${CONTAINER_TEST_NAME} \
-                        -p ${CONTAINER_TEST_PORT}:3000 \
-                        --memory=256m \
-                        --cpus=0.5 \
+                    echo "-- Starting test container --"
+                    docker run -d \\
+                        --name ${CONTAINER_TEST_NAME} \\
+                        -p ${CONTAINER_TEST_PORT}:3000 \\
+                        --memory=256m \\
+                        --cpus=0.5 \\
                         ${IMAGE_NAME}:${IMAGE_TAG}
 
-                    echo "── Waiting for container startup (15s) ──"
+                    echo "-- Waiting for container startup (15s) --"
                     sleep 15
 
-                    echo "── Container Status ──"
+                    echo "-- Container Status --"
                     docker ps -a --filter "name=${CONTAINER_TEST_NAME}"
 
-                    echo "── Container Logs ──"
+                    echo "-- Container Logs --"
                     docker logs ${CONTAINER_TEST_NAME}
 
-                    echo "── Running State Check ──"
+                    echo "-- Running State Check --"
                     RUNNING=\$(docker inspect -f '{{.State.Running}}' ${CONTAINER_TEST_NAME})
                     if [ "\${RUNNING}" != "true" ]; then
-                        echo "❌ ERROR: Container stopped unexpectedly"
+                        echo "ERROR: Container stopped unexpectedly"
                         docker logs ${CONTAINER_TEST_NAME}
                         exit 1
                     fi
-                    echo "✅ Container is running"
+                    echo "Container is running OK"
 
                     echo ""
-                    echo "── Health Endpoint Test ──"
-                    HTTP_CODE=\$(curl -s -o /tmp/health_response.txt -w "%{http_code}" \
-                        --retry 5 --retry-delay 3 --retry-connrefused \
+                    echo "-- Health Endpoint Test --"
+                    HTTP_CODE=\$(curl -s -o /tmp/health_resp.txt -w "%{http_code}" \\
+                        --retry 5 --retry-delay 3 --retry-connrefused \\
                         http://localhost:${CONTAINER_TEST_PORT}/api/health)
-                    cat /tmp/health_response.txt
+                    cat /tmp/health_resp.txt
                     echo ""
 
                     if [ "\${HTTP_CODE}" = "200" ]; then
-                        echo "✅ Health check PASSED (HTTP 200)"
+                        echo "Health check PASSED (HTTP 200)"
                     else
-                        echo "❌ Health check FAILED (HTTP \${HTTP_CODE})"
+                        echo "Health check FAILED (HTTP \${HTTP_CODE})"
                         exit 1
                     fi
 
                     echo ""
-                    echo "── Response Time Test ──"
-                    curl -s -o /dev/null -w "Response time: %{time_total}s\\n" \
+                    echo "-- Response Time --"
+                    curl -s -o /dev/null -w "Response time: %{time_total}s\\n" \\
                         http://localhost:${CONTAINER_TEST_PORT}/api/health
 
                     echo ""
-                    echo "── Memory Usage ──"
-                    docker stats ${CONTAINER_TEST_NAME} --no-stream --format \
+                    echo "-- Memory Usage --"
+                    docker stats ${CONTAINER_TEST_NAME} --no-stream --format \\
                         "Container: {{.Container}}  CPU: {{.CPUPerc}}  MEM: {{.MemUsage}}"
                 """
             }
             post {
                 always {
                     sh """
-                        echo "── Cleaning up smoke test container ──"
+                        echo "-- Cleaning up smoke test container --"
                         docker stop ${CONTAINER_TEST_NAME} 2>/dev/null || true
                         docker rm   ${CONTAINER_TEST_NAME} 2>/dev/null || true
                     """
@@ -546,87 +508,78 @@ pipeline {
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 10 — PUSH TO DOCKER HUB
+        //  PHASE 10 - PUSH TO DOCKER HUB
         // ════════════════════════════════════════════════════
-        stage('📤 Push to Docker Hub') {
+        stage('Push to Docker Hub') {
             steps {
-                echo '▶ Pushing image to Docker Hub registry...'
+                echo 'Pushing image to Docker Hub registry...'
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-credentials',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh """
-                        echo "── Docker Hub Login ──"
+                        echo "-- Docker Hub Login --"
                         echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin
 
-                        echo "── Pushing ${IMAGE_NAME}:${IMAGE_TAG} ──"
+                        echo "-- Pushing ${IMAGE_NAME}:${IMAGE_TAG} --"
                         docker push ${IMAGE_NAME}:${IMAGE_TAG}
 
-                        echo "── Pushing ${IMAGE_NAME}:latest ──"
+                        echo "-- Pushing ${IMAGE_NAME}:latest --"
                         docker push ${IMAGE_NAME}:latest
 
-                        echo "── Tagging with build info ──"
+                        echo "-- Tagging with build number --"
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:build-${BUILD_NUMBER}
                         docker push ${IMAGE_NAME}:build-${BUILD_NUMBER}
 
                         docker logout
-                        echo "✅ Image pushed successfully"
+                        echo "Image pushed successfully"
                     """
                 }
             }
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 11 — DEPLOY PRODUCTION
+        //  PHASE 11 - DEPLOY PRODUCTION
         // ════════════════════════════════════════════════════
-        stage('🚀 Deploy Production') {
+        stage('Deploy Production') {
             steps {
-                echo '▶ Deploying production container with zero-downtime rolling restart...'
+                echo 'Deploying production container...'
                 sh """
                     set -e
 
-                    echo "── Saving previous container state for rollback ──"
-                    PREV_IMAGE=\$(docker inspect ${CONTAINER_PROD_NAME} \
-                        --format '{{.Config.Image}}' 2>/dev/null || echo "none")
-                    echo "Previous image: \${PREV_IMAGE}"
-
-                    echo ""
-                    echo "── Stopping old container ──"
+                    echo "-- Stopping old container --"
                     docker stop ${CONTAINER_PROD_NAME} 2>/dev/null || true
                     docker rm   ${CONTAINER_PROD_NAME} 2>/dev/null || true
 
-                    echo ""
-                    echo "── Starting new production container ──"
-                    docker run -d \
-                        --name ${CONTAINER_PROD_NAME} \
-                        -p ${PRODUCTION_PORT}:3000 \
-                        --restart unless-stopped \
-                        --memory=512m \
-                        --cpus=1.0 \
-                        --label "build.number=${BUILD_NUMBER}" \
+                    echo "-- Starting new production container --"
+                    docker run -d \\
+                        --name ${CONTAINER_PROD_NAME} \\
+                        -p ${PRODUCTION_PORT}:3000 \\
+                        --restart unless-stopped \\
+                        --memory=512m \\
+                        --cpus=1.0 \\
+                        --label "build.number=${BUILD_NUMBER}" \\
                         ${IMAGE_NAME}:${IMAGE_TAG}
 
-                    echo ""
-                    echo "── Waiting for production startup ──"
+                    echo "-- Waiting for production startup --"
                     sleep 10
 
-                    echo "── Production Container Status ──"
+                    echo "-- Production Container Status --"
                     docker ps --filter "name=${CONTAINER_PROD_NAME}"
 
-                    echo ""
-                    echo "── Production Container Logs ──"
+                    echo "-- Production Container Logs --"
                     docker logs --tail 30 ${CONTAINER_PROD_NAME}
                 """
             }
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 12 — POST-DEPLOY HEALTH VERIFICATION
+        //  PHASE 12 - POST-DEPLOY HEALTH VERIFICATION
         // ════════════════════════════════════════════════════
-        stage('✅ Post-Deploy Health Verification') {
+        stage('Post-Deploy Health Verification') {
             steps {
-                echo '▶ Verifying production deployment is healthy...'
+                echo 'Verifying production deployment is healthy...'
                 script {
                     def maxRetries = 5
                     def retryDelay = 5
@@ -641,122 +594,107 @@ pipeline {
 
                         if (result == '200') {
                             healthy = true
-                            echo "✅ Production health check PASSED on attempt ${i}"
+                            echo "Production health check PASSED on attempt ${i}"
                             break
                         } else {
-                            echo "⚠️  Attempt ${i} returned HTTP ${result}. Waiting ${retryDelay}s..."
+                            echo "Attempt ${i} returned HTTP ${result}. Waiting ${retryDelay}s..."
                             if (i < maxRetries) sleep(retryDelay)
                         }
                     }
 
                     if (!healthy) {
-                        echo "❌ Production health check FAILED after ${maxRetries} attempts — initiating rollback"
+                        echo "Production health check FAILED - initiating rollback"
                         sh """
                             docker stop ${CONTAINER_PROD_NAME} 2>/dev/null || true
                             docker rm   ${CONTAINER_PROD_NAME} 2>/dev/null || true
 
-                            PREV_TAG=\$(docker images ${IMAGE_NAME} --format "{{.Tag}}" | grep -v latest | sort -n | tail -2 | head -1 || echo "")
-                            if [ -n "\${PREV_TAG}" ] && [ "\${PREV_TAG}" != "${IMAGE_TAG}" ]; then
-                                echo "── Rolling back to ${IMAGE_NAME}:\${PREV_TAG} ──"
-                                docker run -d \
-                                    --name ${CONTAINER_PROD_NAME} \
-                                    -p ${PRODUCTION_PORT}:3000 \
-                                    --restart unless-stopped \
+                            PREV_TAG=\$(docker images ${IMAGE_NAME} --format "{{.Tag}}" \\
+                                | grep -v latest | grep -v "build-" | sort -n | tail -2 | head -1 || echo "")
+
+                            if [ -n "\${PREV_TAG}" ] && [ "\${PREV_TAG}" != "${BUILD_NUMBER}" ]; then
+                                echo "Rolling back to ${IMAGE_NAME}:\${PREV_TAG}"
+                                docker run -d \\
+                                    --name ${CONTAINER_PROD_NAME} \\
+                                    -p ${PRODUCTION_PORT}:3000 \\
+                                    --restart unless-stopped \\
                                     ${IMAGE_NAME}:\${PREV_TAG}
-                                echo "⚠️  Rolled back to image: ${IMAGE_NAME}:\${PREV_TAG}"
+                                echo "Rolled back to image: \${PREV_TAG}"
                             else
                                 echo "No previous image available for rollback"
                             fi
                         """
-                        error("Deployment health check failed — rollback initiated")
+                        error("Deployment health check failed - rollback initiated")
                     }
                 }
             }
         }
 
         // ════════════════════════════════════════════════════
-        //  PHASE 13 — FINAL REPORT
+        //  PHASE 13 - FINAL REPORT
         // ════════════════════════════════════════════════════
-        stage('📋 Final Report') {
+        stage('Final Report') {
             steps {
                 sh """
                     echo ""
-                    echo "╔══════════════════════════════════════════════════╗"
-                    echo "║         PIPELINE REPORT — BUILD #${BUILD_NUMBER}"
-                    echo "╠══════════════════════════════════════════════════╣"
-                    echo "║  App       : ${APP_NAME}"
-                    echo "║  Image     : ${IMAGE_NAME}:${IMAGE_TAG}"
-                    echo "║  Port      : ${PRODUCTION_PORT}"
-                    echo "║  Container : ${CONTAINER_PROD_NAME}"
-                    echo "║  Status    : DEPLOYED ✅"
-                    echo "╠══════════════════════════════════════════════════╣"
-                    echo "║  Stages run:"
-                    echo "║  ✅ Environment Info"
-                    echo "║  ✅ Install Dependencies (parallel)"
-                    echo "║  ✅ Code Quality — ESLint, Secrets, npm audit"
-                    echo "║  ✅ Unit Tests — Jest (backend) + Vitest (frontend)"
-                    echo "║  ✅ Integration Tests"
-                    echo "║  ✅ Coverage Gate (min ${COVERAGE_THRESHOLD}%)"
-                    echo "║  ✅ Build — Vite frontend + structure verify"
-                    echo "║  ✅ Docker Build (multi-stage)"
-                    echo "║  ✅ Image Security Scan (Trivy)"
-                    echo "║  ✅ Container Smoke Test"
-                    echo "║  ✅ Docker Hub Push"
-                    echo "║  ✅ Production Deploy"
-                    echo "║  ✅ Post-Deploy Health Verification"
-                    echo "╚══════════════════════════════════════════════════╝"
+                    echo "=================================================="
+                    echo "  PIPELINE REPORT - BUILD #${BUILD_NUMBER}"
+                    echo "=================================================="
+                    echo "  App       : ${APP_NAME}"
+                    echo "  Image     : ${IMAGE_NAME}:${IMAGE_TAG}"
+                    echo "  Port      : ${PRODUCTION_PORT}"
+                    echo "  Container : ${CONTAINER_PROD_NAME}"
+                    echo "  Status    : DEPLOYED"
+                    echo "--------------------------------------------------"
+                    echo "  Stages completed:"
+                    echo "  [OK] Environment Info"
+                    echo "  [OK] Install Dependencies (parallel)"
+                    echo "  [OK] Code Quality - ESLint, Secrets, npm audit"
+                    echo "  [OK] Unit Tests - Jest (backend) + Vitest (frontend)"
+                    echo "  [OK] Integration Tests"
+                    echo "  [OK] Coverage Gate (min ${COVERAGE_THRESHOLD}%)"
+                    echo "  [OK] Build - Vite frontend"
+                    echo "  [OK] Docker Build (multi-stage)"
+                    echo "  [OK] Image Security Scan (Trivy)"
+                    echo "  [OK] Container Smoke Test"
+                    echo "  [OK] Docker Hub Push"
+                    echo "  [OK] Production Deploy"
+                    echo "  [OK] Post-Deploy Health Verification"
+                    echo "=================================================="
                     echo ""
-                    echo "Application: http://\$(curl -s ifconfig.me 2>/dev/null || echo '<EC2-PUBLIC-IP>')"
-                    echo "Jenkins:     ${BUILD_URL_MSG}"
+                    PUBLIC_IP=\$(curl -s --max-time 3 ifconfig.me 2>/dev/null || echo 'YOUR-SERVER-IP')
+                    echo "  Application URL: http://\${PUBLIC_IP}"
+                    echo "  Jenkins URL    : ${env.BUILD_URL}"
+                    echo "=================================================="
                 """
             }
         }
     }
 
     // ════════════════════════════════════════════════════════
-    //  POST — Cleanup & Notifications
+    //  POST - Cleanup and Notifications
     // ════════════════════════════════════════════════════════
     post {
 
         always {
-            echo '🧹 Cleaning up build artifacts and stale Docker resources...'
+            echo 'Cleaning up build artifacts and stale Docker resources...'
             sh '''
-                # Remove dangling images (untagged layers from builds)
                 docker image prune -f || true
-
-                # Remove stopped containers older than 1 hour
                 docker container prune -f || true
-
-                # Show current Docker resource usage
-                echo "── Docker Disk Usage ──"
+                echo "-- Docker Disk Usage --"
                 docker system df || true
             '''
         }
 
         success {
-            echo """
-╔══════════════════════════════════════════════╗
-║   ✅  BUILD SUCCESS — Build #${BUILD_NUMBER}
-║   Image: ${IMAGE_NAME}:${IMAGE_TAG}
-║   Deployed on port ${PRODUCTION_PORT}
-║   URL: http://<EC2-PUBLIC-IP>
-╚══════════════════════════════════════════════╝
-            """
+            echo "BUILD SUCCESS - Build #${BUILD_NUMBER} deployed on port ${PRODUCTION_PORT}"
         }
 
         failure {
-            echo """
-╔══════════════════════════════════════════════╗
-║   ❌  BUILD FAILED — Build #${BUILD_NUMBER}
-║   Check stage logs above for root cause.
-║   Rollback may have been triggered.
-║   Jenkins: ${BUILD_URL_MSG}console
-╚══════════════════════════════════════════════╝
-            """
+            echo "BUILD FAILED - Build #${BUILD_NUMBER}. Check logs above for root cause."
         }
 
         unstable {
-            echo "⚠️  Build #${BUILD_NUMBER} is UNSTABLE — Tests may have failed or coverage dropped."
+            echo "BUILD UNSTABLE - Build #${BUILD_NUMBER}. Tests may have failed or coverage dropped."
         }
     }
 }

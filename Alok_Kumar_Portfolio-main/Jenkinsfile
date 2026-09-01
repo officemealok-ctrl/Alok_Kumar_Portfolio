@@ -30,7 +30,6 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 45, unit: 'MINUTES')
         timestamps()
-        ansiColor('xterm')
     }
 
     triggers {
@@ -232,18 +231,12 @@ pipeline {
                     post {
                         always {
                             script {
+                                // Archive test results if they exist
                                 if (fileExists("${BACKEND_DIR}/junit.xml")) {
-                                    junit "${BACKEND_DIR}/junit.xml"
+                                    archiveArtifacts artifacts: "${BACKEND_DIR}/junit.xml", allowEmptyArchive: true
                                 }
                                 if (fileExists("${BACKEND_DIR}/coverage/index.html")) {
-                                    publishHTML([
-                                        allowMissing: true,
-                                        alwaysLinkToLastBuild: true,
-                                        keepAll: true,
-                                        reportDir: "${BACKEND_DIR}/coverage",
-                                        reportFiles: 'index.html',
-                                        reportName: 'Backend Coverage Report'
-                                    ])
+                                    archiveArtifacts artifacts: "${BACKEND_DIR}/coverage/**/*", allowEmptyArchive: true
                                 }
                             }
                         }
@@ -271,18 +264,12 @@ pipeline {
                     post {
                         always {
                             script {
+                                // Archive test results if they exist
                                 if (fileExists("${FRONTEND_DIR}/junit-frontend.xml")) {
-                                    junit "${FRONTEND_DIR}/junit-frontend.xml"
+                                    archiveArtifacts artifacts: "${FRONTEND_DIR}/junit-frontend.xml", allowEmptyArchive: true
                                 }
                                 if (fileExists("${FRONTEND_DIR}/coverage/index.html")) {
-                                    publishHTML([
-                                        allowMissing: true,
-                                        alwaysLinkToLastBuild: true,
-                                        keepAll: true,
-                                        reportDir: "${FRONTEND_DIR}/coverage",
-                                        reportFiles: 'index.html',
-                                        reportName: 'Frontend Coverage Report'
-                                    ])
+                                    archiveArtifacts artifacts: "${FRONTEND_DIR}/coverage/**/*", allowEmptyArchive: true
                                 }
                             }
                         }
